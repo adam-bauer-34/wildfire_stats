@@ -19,7 +19,31 @@ SHAPEFILE_RENAMES = {
     "biome_refi": "modis_class_static_grouped",
 }
 
-GFA_FOLDER_PATTERN = re.compile(r"Global_fire_atlas_V1_perimeter_\d{4}")
+GFA_PERIMETER_PATTERN = re.compile(r"^Global_fire_atlas_V1_perimeter_(\d{4})$")
+
+
+def _find_gfa_shapefiles(folder):
+    """Map year -> path for GFA perimeter shapefiles under ``folder``.
+
+    Supports both layouts:
+      * flat:   ``folder/Global_fire_atlas_V1_perimeter_YYYY.shp``
+      * nested: ``folder/Global_fire_atlas_V1_perimeter_YYYY/Global_fire_atlas_V1_perimeter_YYYY.shp``
+    Flat files take precedence if both exist for a year.
+    """
+    found = {}
+    for name in sorted(os.listdir(folder)):
+        stem, ext = os.path.splitext(name)
+        full = os.path.join(folder, name)
+        if ext.lower() == ".shp":
+            m = GFA_PERIMETER_PATTERN.match(stem)
+            if m:
+                found[int(m.group(1))] = full
+        elif os.path.isdir(full):
+            m = GFA_PERIMETER_PATTERN.match(name)
+            nested = os.path.join(full, name + ".shp")
+            if m and os.path.exists(nested):
+                found.setdefault(int(m.group(1)), nested)
+    return dict(sorted(found.items()))
 
 
 def load_shapefile(shp_path, projection, area_col=None, equal_area_crs=None):
@@ -65,11 +89,20 @@ def load_idaho(path, layer="Fires1950_Present", equal_area_crs=None):
     return gdf
 
 
-def load_gfa(folder, years=None, bbox=None, to_equal_area=True, verbose=True, crs=None, equal_area_crs=None):
+def load_gfa(
+    folder,
+    years=None,
+    bbox=None,
+    to_equal_area=True,
+    verbose=True,
+    crs=None,
+    equal_area_crs=None,
+):
     """Load and concatenate the yearly Global Fire Atlas perimeter shapefiles.
 
     Args:
-        folder: Directory containing ``Global_fire_atlas_V1_perimeter_YYYY/`` folders.
+        folder: Directory containing ``Global_fire_atlas_V1_perimeter_YYYY.shp`` files
+            (or, in the older layout, one ``Global_fire_atlas_V1_perimeter_YYYY/`` folder per year).
         years: Optional inclusive ``(start, end)`` year range.
         bbox: Optional lon/lat box ``{"minx", "maxx", "miny", "maxy"}`` (e.g. ``CONUS_BBOX``).
         to_equal_area: Reproject to the equal-area CRS and add ``area_km2`` / ``perim_km``.
@@ -83,31 +116,30 @@ def load_gfa(folder, years=None, bbox=None, to_equal_area=True, verbose=True, cr
     equal_area_crs = resolve(equal_area_crs, "equal_area_crs")
 
     gfa_all_data = []
-    for gfa_folder_name in os.listdir(folder):
-        if not GFA_FOLDER_PATTERN.match(gfa_folder_name):
-            continue
-        gfa_year = int(re.search(r"\d{4}", gfa_folder_name).group())
+    for gfa_year, gfa_shp_path in _find_gfa_shapefiles(folder).items():
         if years is not None and not (years[0] <= gfa_year <= years[1]):
-            continue
-        gfa_shp_path = os.path.join(folder, gfa_folder_name, gfa_folder_name + ".shp")
-        if not os.path.exists(gfa_shp_path):
             continue
 
         if verbose:
             print(f"Processing {gfa_shp_path} ...")
         gfa_gdf = gpd.read_file(gfa_shp_path).set_crs(crs)
+        # bbox is lon/lat, so clip in the native GFA CRS before any reprojection
+        if bbox is not None:
+            gfa_gdf = gfa_gdf.cx[
+                bbox["minx"] : bbox["maxx"], bbox["miny"] : bbox["maxy"]
+            ]
         if to_equal_area:
             gfa_gdf = gfa_gdf.to_crs(equal_area_crs)
             gfa_gdf["area_km2"] = gfa_gdf.geometry.area / 1e6
             gfa_gdf["perim_km"] = gfa_gdf.geometry.length / 1000
         gfa_gdf["YEAR"] = gfa_year
-        if bbox is not None:
-            gfa_gdf = gfa_gdf.cx[bbox["minx"]:bbox["maxx"], bbox["miny"]:bbox["maxy"]]
         gfa_all_data.append(gfa_gdf)
 
     out_crs = equal_area_crs if to_equal_area else crs
     if not gfa_all_data:
-        return gpd.GeoDataFrame(columns=["fire_ID", "geometry", "YEAR", "landcover_s"], crs=out_crs)
+        return gpd.GeoDataFrame(
+            columns=["fire_ID", "geometry", "YEAR", "landcover_s"], crs=out_crs
+        )
     return gpd.GeoDataFrame(pd.concat(gfa_all_data, ignore_index=True), crs=out_crs)
 
 

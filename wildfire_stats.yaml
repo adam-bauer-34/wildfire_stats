@@ -5,7 +5,7 @@
 # Built from the imports in src/ and dev/*.ipynb. Versions follow the
 # original macOS environment.yml (Python 3.10, numpy 2.2, GDAL 3.10, ...),
 # but without platform-specific build strings so it solves on Linux.
-name: wildfire-stats
+name: wildfire_stats
 channels:
   - conda-forge
 dependencies:
