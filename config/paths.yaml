@@ -1,0 +1,10 @@
+DATA_HEAD: /project/bbcael/private/ambauer/wildfire-stats
+
+MODIS_SUBDIR: modis/
+MTBS_SUBDIR: mtbs/
+GFA_SUBDIR: gfa/data/
+IDAHO_SUBDIR: idaho/
+EVT_SUBDIR: evt/
+LOGGED_OUTPUT_SUBDIR: logged_output/
+OUTPUT_SUBDIR: output/
+FIGS_DIR: analysis/figs     # repo-relative
