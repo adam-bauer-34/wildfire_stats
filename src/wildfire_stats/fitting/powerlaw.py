@@ -497,7 +497,8 @@ class Fit(object):
         edges, hist = pdf(data, xmin=xmin, xmax=xmax, **kwargs)
         return edges, hist
 
-    def plot_cdf(self, ax=None, original_data=False, survival=False, **kwargs):
+    def plot_cdf(self, ax=None, original_data=False, survival=False,
+                 save_figs=False, name=None, **kwargs):
         """
         Plots the CDF to a new figure or to axis ax if provided.
 
@@ -511,6 +512,10 @@ class Fit(object):
             xmax.)
         survival : bool, optional
             Whether to plot a CDF (False) or CCDF (True). False by default.
+        save_figs : bool, optional
+            If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+        name : str, optional
+            Filename stem for the saved figure (default derived from the plot).
 
         Returns
         -------
@@ -521,9 +526,11 @@ class Fit(object):
             data = self.data_original
         else:
             data = self.data
-        return plot_cdf(data, ax=ax, survival=survival, **kwargs)
+        return plot_cdf(data, ax=ax, survival=survival, save_figs=save_figs,
+                        name=name or "data_cdf", **kwargs)
 
-    def plot_ccdf(self, ax=None, original_data=False, survival=True, **kwargs):
+    def plot_ccdf(self, ax=None, original_data=False, survival=True,
+                  save_figs=False, name=None, **kwargs):
         """
         Plots the CCDF to a new figure or to axis ax if provided.
 
@@ -537,6 +544,10 @@ class Fit(object):
             xmax.)
         survival : bool, optional
             Whether to plot a CDF (False) or CCDF (True). True by default.
+        save_figs : bool, optional
+            If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+        name : str, optional
+            Filename stem for the saved figure (default derived from the plot).
 
         Returns
         -------
@@ -547,10 +558,11 @@ class Fit(object):
             data = self.data_original
         else:
             data = self.data
-        return plot_cdf(data, ax=ax, survival=survival, **kwargs)
+        return plot_cdf(data, ax=ax, survival=survival, save_figs=save_figs,
+                        name=name or "data_ccdf", **kwargs)
 
     def plot_pdf(self, ax=None, original_data=False,
-                 linear_bins=False, **kwargs):
+                 linear_bins=False, save_figs=False, name=None, **kwargs):
         """
         Plots the probability density function (PDF) or the data to a new figure
         or to axis ax if provided.
@@ -566,6 +578,10 @@ class Fit(object):
         linear_bins : bool, optional
             Whether to use linearly spaced bins (True) or logarithmically
             spaced bins (False). False by default.
+        save_figs : bool, optional
+            If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+        name : str, optional
+            Filename stem for the saved figure (default derived from the plot).
 
         Returns
         -------
@@ -576,7 +592,8 @@ class Fit(object):
             data = self.data_original
         else:
             data = self.data
-        return plot_pdf(data, ax=ax, linear_bins=linear_bins, **kwargs)
+        return plot_pdf(data, ax=ax, linear_bins=linear_bins, save_figs=save_figs,
+                        name=name or "data_pdf", **kwargs)
 
 class Distribution(object):
     """
@@ -1007,7 +1024,8 @@ class Distribution(object):
         from numpy import log
         return log(self.likelihoods(data))
 
-    def plot_ccdf(self, data=None, ax=None, survival=True, **kwargs):
+    def plot_ccdf(self, data=None, ax=None, survival=True, save_figs=False,
+                  name=None, **kwargs):
         """
         Plots the complementary cumulative distribution function (CDF) of the
         theoretical distribution for the values given in data within xmin and
@@ -1022,15 +1040,21 @@ class Distribution(object):
             The axis to which to plot. If None, a new figure is created.
         survival : bool, optional
             Whether to plot a CDF (False) or CCDF (True). True by default.
+        save_figs : bool, optional
+            If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+        name : str, optional
+            Filename stem for the saved figure (default derived from the plot).
 
         Returns
         -------
         ax : matplotlib axis
             The axis to which the plot was made.
         """
-        return self.plot_cdf(data, ax=ax, survival=survival, **kwargs)
+        return self.plot_cdf(data, ax=ax, survival=survival, save_figs=save_figs,
+                             name=name or f"{self.name}_ccdf", **kwargs)
 
-    def plot_cdf(self, data=None, ax=None, survival=False, **kwargs):
+    def plot_cdf(self, data=None, ax=None, survival=False, save_figs=False,
+                 name=None, **kwargs):
         """
         Plots the cumulative distribution function (CDF) of the
         theoretical distribution for the values given in data within xmin and
@@ -1045,6 +1069,10 @@ class Distribution(object):
             The axis to which to plot. If None, a new figure is created.
         survival : bool, optional
             Whether to plot a CDF (False) or CCDF (True). False by default.
+        save_figs : bool, optional
+            If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+        name : str, optional
+            Filename stem for the saved figure (default derived from the plot).
 
         Returns
         -------
@@ -1062,9 +1090,9 @@ class Distribution(object):
         ax.plot(bins, CDF, **kwargs)
         ax.set_xscale("log")
         ax.set_yscale("log")
-        return ax
+        return _save_plot(ax, save_figs, name or f"{self.name}_cdf")
 
-    def plot_pdf(self, data=None, ax=None, **kwargs):
+    def plot_pdf(self, data=None, ax=None, save_figs=False, name=None, **kwargs):
         """
         Plots the probability density function (PDF) of the
         theoretical distribution for the values given in data within xmin and
@@ -1077,6 +1105,10 @@ class Distribution(object):
             which the Distribution object is contained.
         ax : matplotlib axis, optional
             The axis to which to plot. If None, a new figure is created.
+        save_figs : bool, optional
+            If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+        name : str, optional
+            Filename stem for the saved figure (default derived from the plot).
 
         Returns
         -------
@@ -1098,7 +1130,7 @@ class Distribution(object):
             ax.plot(bins, PDF, **kwargs)
         ax.set_xscale("log")
         ax.set_yscale("log")
-        return ax
+        return _save_plot(ax, save_figs, name or f"{self.name}_pdf")
 
     def generate_random(self,n=1, estimate_discrete=None):
         """
@@ -2064,8 +2096,17 @@ def checkunique(data):
 #        data = sort(data)
 #    return data
 
-def plot_ccdf(data, ax=None, survival=False, **kwargs):
-    return plot_cdf(data, ax=ax, survival=True, **kwargs)
+def _save_plot(ax, save_figs, name):
+    """Save ``ax``'s figure to ``FIGS_DIR`` (300 DPI) if ``save_figs``; return ``ax``.
+
+    Does not call ``plt.show()`` so callers can keep customising the axis.
+    """
+    if save_figs:
+        from wildfire_stats.plotting.presets import finish_fig
+        finish_fig(name, True, fig=ax.figure, show=False)
+    return ax
+
+def plot_ccdf(data, ax=None, survival=False, save_figs=False, name=None, **kwargs):
     """
     Plots the complementary cumulative distribution function (CDF) of the data
     to a new figure or to axis ax if provided.
@@ -2077,14 +2118,20 @@ def plot_ccdf(data, ax=None, survival=False, **kwargs):
         The axis to which to plot. If None, a new figure is created.
     survival : bool, optional
         Whether to plot a CDF (False) or CCDF (True). True by default.
+    save_figs : bool, optional
+        If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+    name : str, optional
+        Filename stem for the saved figure (default derived from the plot).
 
     Returns
     -------
     ax : matplotlib axis
         The axis to which the plot was made.
     """
+    return plot_cdf(data, ax=ax, survival=True, save_figs=save_figs,
+                    name=name or "data_ccdf", **kwargs)
 
-def plot_cdf(data, ax=None, survival=False, **kwargs):
+def plot_cdf(data, ax=None, survival=False, save_figs=False, name=None, **kwargs):
     """
     Plots the cumulative distribution function (CDF) of the data to a new
     figure or to axis ax if provided.
@@ -2096,6 +2143,10 @@ def plot_cdf(data, ax=None, survival=False, **kwargs):
         The axis to which to plot. If None, a new figure is created.
     survival : bool, optional
         Whether to plot a CDF (False) or CCDF (True). False by default.
+    save_figs : bool, optional
+        If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+    name : str, optional
+        Filename stem for the saved figure (default derived from the plot).
 
     Returns
     -------
@@ -2111,9 +2162,9 @@ def plot_cdf(data, ax=None, survival=False, **kwargs):
         ax.plot(bins, CDF, **kwargs)
     ax.set_xscale("log")
     ax.set_yscale("log")
-    return ax
+    return _save_plot(ax, save_figs, name or "data_cdf")
 
-def plot_pdf(data, ax=None, linear_bins=False, **kwargs):
+def plot_pdf(data, ax=None, linear_bins=False, save_figs=False, name=None, **kwargs):
     """
     Plots the probability density function (PDF) to a new figure or to axis ax
     if provided.
@@ -2126,6 +2177,10 @@ def plot_pdf(data, ax=None, linear_bins=False, **kwargs):
     linear_bins : bool, optional
         Whether to use linearly spaced bins (True) or logarithmically
         spaced bins (False). False by default.
+    save_figs : bool, optional
+        If True, save the figure containing ``ax`` to ``FIGS_DIR`` at 300 DPI.
+    name : str, optional
+        Filename stem for the saved figure (default derived from the plot).
 
     Returns
     -------
@@ -2149,7 +2204,7 @@ def plot_pdf(data, ax=None, linear_bins=False, **kwargs):
         ax.plot(bin_centers, hist, **kwargs)
     ax.set_xscale("log")
     ax.set_yscale("log")
-    return ax
+    return _save_plot(ax, save_figs, name or "data_pdf")
 
 def bisect_map(mn, mx, function, target):
     """
@@ -3072,13 +3127,18 @@ def summarize_parameters_bootstrap(data, xmin=None, discrete=False, R=200, rando
 
     return df
 
-def plot_ccdf_with_selected_fits(data, xmin=None, discrete=False, which=('power_law','truncated_power_law'), ax=None):
-    """Plot empirical PDF and selected fitted distributions.
+def plot_ccdf_with_selected_fits(data, xmin=None, discrete=False, which=('power_law','truncated_power_law'), ax=None,
+                                 save_figs=False, name=None):
+    """Plot empirical CCDF and selected fitted distributions.
 
     Parameters
     ----------
     data : array-like
     which : iterable of distribution names among the supported 9
+    save_figs : bool, optional
+        If True, save the figure to ``FIGS_DIR`` at 300 DPI (no ``plt.show()``).
+    name : str, optional
+        Filename stem (default ``ccdf_selected_fits_<which...>``).
     """
     import matplotlib.pyplot as plt
     fit = Fit(data, xmin=xmin, discrete=discrete)
@@ -3087,14 +3147,14 @@ def plot_ccdf_with_selected_fits(data, xmin=None, discrete=False, which=('power_
         ax = fig.add_subplot(111)
 
     fit.plot_ccdf(color='k', linewidth=2, ax=ax, label="Empirical data")
-    for name in which:
-        dist = getattr(fit, name)
-        dist.plot_ccdf(ax=ax, linestyle='--', label=f"{name.replace('_',' ').title()} fit")
+    for dist_name in which:
+        dist = getattr(fit, dist_name)
+        dist.plot_ccdf(ax=ax, linestyle='--', label=f"{dist_name.replace('_',' ').title()} fit")
 
     ax.set_xlabel("Area (km^2)")
     ax.set_ylabel("CCDF")
     ax.legend()
-    return ax
+    return _save_plot(ax, save_figs, name or "ccdf_selected_fits_" + "_".join(which))
 
 
 class Lognormal_Excess(Lognormal):

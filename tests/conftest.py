@@ -43,7 +43,11 @@ def isolated_config(tmp_path, monkeypatch):
         f"FIGS_DIR: {tmp_path / 'figs'}\n"
     )
     monkeypatch.setenv("WILDFIRE_STATS_CONFIG_DIR", str(cfg))
-    return cfg
+    from wildfire_stats import config as wcfg
+
+    wcfg.clear_overrides()  # no set_overrides() state leaks between tests
+    yield cfg
+    wcfg.clear_overrides()
 
 
 def make_fires(n_per=300, seed=0, biomes=CORE_BIOMES):

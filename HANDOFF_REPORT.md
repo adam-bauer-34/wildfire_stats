@@ -43,11 +43,13 @@ Throughout, `xmin = 4 km²` and areas are computed in **EPSG:6933** (equal-area)
 |---|---|---|---|
 | 1 | `1_dataset_comparison` | Compares MTBS / GFA / Idaho CDFs over their shared space-time window; minimises the Kuiper statistic over a size threshold α. **This is where `xmin = 4 km²` comes from.** | figures only |
 | 2 | `2_fitting_routine` | Demo of `wfpl` on raw MTBS; sanity-check that all three datasets give similar fits | figures only |
-| 3 | `3_land_cover_classification` | `gdal_translate` MODIS HDF → GeoTIFF; validates MODIS-majority land cover against GFA's own `landcover_s` attribute (confusion matrices, per-period stability) | `gfa_2003_2016_usa_classified_timevarying.shp` |
-| 4 | `4_land_cover_segmentation` | Applies MODIS classification to MTBS + Idaho (which lack a land-cover field); static fits per biome per dataset | 3 `.shp`, 3 `*_static_fits_by_biome_2003_2016.pkl` |
-| 5 | `5_temporal_analysis` | **The main result.** Builds a *static* (pixelwise-mode-over-years) MODIS raster so MTBS 1984–2024 can be classified outside 2003–2016; static fits per biome; **time-varying MLE** where each parameter is linear in year; Poisson tail-trend regressions; refined biome groupings split by longitude | `mtbs_classified_static.shp`, `mtbs_classified.shp`, 3 `.pkl` |
+| 3 | `3_land_cover_classification` | `gdal_translate` MODIS HDF → GeoTIFF; validates MODIS-majority land cover against GFA's own `landcover_s` attribute (confusion matrices, per-period stability) | `gfa_2003_2016_usa_classified_timevarying_minfire<x>.shp` |
+| 4 | `4_land_cover_segmentation` | Applies MODIS classification to MTBS + Idaho (which lack a land-cover field); static fits per biome per dataset | 3 `*_minfire<x>.shp`, 3 `*_static_fits_by_biome_2003_2016_minfire<x>.pkl` |
+| 5 | `5_temporal_analysis` | **The main result.** Builds a *static* (pixelwise-mode-over-years) MODIS raster so MTBS 1984–`mtbs_max_year` (2022; later years are provisional) can be classified outside 2003–2016; static fits per biome; **time-varying MLE** where each parameter is linear in year; Poisson tail-trend regressions; refined biome groupings split by longitude | `mtbs_<region>_classified_static_minfire<x>.shp`, `mtbs_<region>_classified_minfire<x>.shp`, 3 `*_minfire<x>.pkl` |
 | 6 | `6_spatial_analysis` | Global GFA on 5°×5° tiles, static + time-varying. Author's own header: *"I've included this notebook for completeness but we ended up moving away from all of this."* | `gfa_spatial_*.pkl` |
-| 7 | `7_evt_classifier` | Re-does the biome analysis with LANDFIRE EVT vegetation types instead of MODIS IGBP classes. Functions are defined inline in the notebook, not in `utils/` | `overall_results_evtname*.pkl` |
+| 7 | `7_evt_classifier` | Re-does the biome analysis with LANDFIRE EVT vegetation types instead of MODIS IGBP classes. Functions are defined inline in the notebook, not in `utils/` | `mtbs_<region>_overall_results_evtname*_minfire<x>.pkl` |
+
+Notebooks 3, 4, 5 and 7 set `MIN_FIRE_SIZE` in their setup cell and call `cfg.set_overrides(min_fire=MIN_FIRE_SIZE)`, so every library default (`xmin`, `amin_min`, ...) uses it; outputs and saved figures carry a `_minfire<x>` tag (`dio.minfire_tag()`, e.g. `minfire6p45`, `minfire4`). Notebook 4 must use the same value as notebook 3, and notebook 7 the same as notebook 5.
 
 ### The time-varying model (the novel contribution)
 
@@ -74,7 +76,7 @@ Sizes are order-of-magnitude estimates — verify before allocating.
 
 | # | Dataset | Source | Coverage | Rough size | Used by |
 |---|---|---|---|---|---|
-| 1 | **MTBS Burned Area Boundaries** (`S_USA.MTBS_BURN_AREA_BOUNDARY.shp`) | <https://mtbs.gov/direct-download> → "Burned Areas Boundaries Dataset" | USA 1984–2024 | ~0.5–1 GB | 1, 2, 4, 5 |
+| 1 | **MTBS Burned Area Boundaries** (`S_USA.MTBS_BURN_AREA_BOUNDARY.shp`) | <https://mtbs.gov/direct-download> → "Burned Areas Boundaries Dataset" | USA 1984–2024 (analysis capped at `mtbs_max_year` = 2022) | ~0.5–1 GB | 1, 2, 4, 5 |
 | 2 | **ORNL DAAC Global Fire Atlas v1** perimeters | <https://www.earthdata.nasa.gov/data/catalog/ornl-cloud-cms-global-fire-atlas-1642-1> | Global 2003–2016 | ~5–10 GB | 1, 2, 3, 6 |
 | 3 | **Idaho State Historical Fires Database** (`HFD_HistoricFiresDatabase7_0.gdb`) | <https://giscenter.isu.edu/research/Techpg/HFD/> → "Download HFD" | 11 western states, 1950–2016 | ~0.2 GB | 1, 2, 4 |
 | 4 | **MODIS MCD12Q1 v061** Land Cover Type Yearly 500 m | <https://www.earthdata.nasa.gov/data/catalog/lpcloud-mcd12q1-061>, Earthdata Search, 2003-01-01 → 2016-12-31 | ~14 CONUS + ~5 AK tiles × 14 yr ≈ 250–300 HDFs | **~10–20 GB** | 3, 4, 5 |

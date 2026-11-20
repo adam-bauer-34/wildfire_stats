@@ -340,6 +340,7 @@ def fires_time_series_by_ecoregion(
     include_total: bool = False,
     plot: bool = True,
     figsize: tuple[int, int] = (10, 5),
+    save_figs: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Aggregate fire counts per ecoregion over fixed-length periods (drops final partial bin).
 
@@ -355,6 +356,7 @@ def fires_time_series_by_ecoregion(
         plot: If True, draw a multi-series line chart
             (``plotting.temporal.plot_fire_counts_by_period``).
         figsize: Figure size.
+        save_figs: If True (and ``plot``), save the figure to ``FIGS_DIR``.
 
     Returns:
         (counts_long, counts_wide)
@@ -415,7 +417,7 @@ def fires_time_series_by_ecoregion(
     if plot:
         from wildfire_stats.plotting.temporal import plot_fire_counts_by_period
 
-        plot_fire_counts_by_period(counts_wide, period_years, figsize=figsize)
+        plot_fire_counts_by_period(counts_wide, period_years, figsize=figsize, save_figs=save_figs)
 
     return counts_long, counts_wide
 

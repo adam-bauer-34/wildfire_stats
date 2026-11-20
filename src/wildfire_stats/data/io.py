@@ -21,6 +21,11 @@ SHAPEFILE_RENAMES = {
 
 GFA_PERIMETER_PATTERN = re.compile(r"^Global_fire_atlas_V1_perimeter_(\d{4})$")
 
+# MTBS region subsets, chosen by the 2-letter state prefix of FIRE_ID (e.g. "AK...", "CA...").
+# "all" = CONUS + Alaska; Hawai'i and Puerto Rico are always excluded.
+MTBS_REGIONS = ("conus", "ak", "all")
+MTBS_EXCLUDED_STATES = ("HI", "PR")
+
 
 def _find_gfa_shapefiles(folder):
     """Map year -> path for GFA perimeter shapefiles under ``folder``.
@@ -46,7 +51,7 @@ def _find_gfa_shapefiles(folder):
     return dict(sorted(found.items()))
 
 
-def load_shapefile(shp_path, projection, area_col=None, equal_area_crs=None):
+def load_shapefile(shp_path, projection, area_col=None, equal_area_crs=None, where=None):
     """Load a vector file, set its CRS, reproject to equal-area, and optionally compute area.
 
     Args:
@@ -55,12 +60,14 @@ def load_shapefile(shp_path, projection, area_col=None, equal_area_crs=None):
         area_col (str, optional): Name of column to store polygon area in km².
             If provided and missing, it will be computed.
         equal_area_crs (str, optional): Target CRS; defaults to ``equal_area_crs`` in the yaml.
+        where (str, optional): OGR SQL ``WHERE`` clause applied while reading, so
+            rows that don't match are never loaded.
 
     Returns:
         GeoDataFrame: Reprojected to the equal-area CRS with optional area column.
     """
     equal_area_crs = resolve(equal_area_crs, "equal_area_crs")
-    gdf = gpd.read_file(shp_path)
+    gdf = gpd.read_file(shp_path) if where is None else gpd.read_file(shp_path, where=where)
     gdf = gdf.set_crs(projection)
     gdf = gdf.to_crs(equal_area_crs)
 
@@ -71,14 +78,63 @@ def load_shapefile(shp_path, projection, area_col=None, equal_area_crs=None):
     return gdf
 
 
-def load_mtbs(path, area_col="AREA_SQKM", crs=None):
+def _resolve_mtbs_region(region):
+    region = str(resolve(region, "mtbs_region")).lower()
+    if region not in MTBS_REGIONS:
+        raise ValueError(f"mtbs region must be one of {MTBS_REGIONS}, got {region!r}")
+    return region
+
+
+def mtbs_region_where(region=None, id_col="FIRE_ID"):
+    """OGR SQL ``WHERE`` clause selecting MTBS fires for ``region`` by FIRE_ID state prefix.
+
+    ``"ak"`` keeps Alaska only; ``"conus"`` drops AK, HI and PR; ``"all"`` drops HI and PR.
+    """
+    region = _resolve_mtbs_region(region)
+    if region == "ak":
+        return f"{id_col} LIKE 'AK%'"
+    excluded = MTBS_EXCLUDED_STATES + (("AK",) if region == "conus" else ())
+    return " AND ".join(f"{id_col} NOT LIKE '{s}%'" for s in excluded)
+
+
+def mtbs_tag(region=None):
+    """Filename prefix for MTBS outputs, e.g. ``mtbs_conus`` / ``mtbs_ak`` / ``mtbs_all``."""
+    return f"mtbs_{_resolve_mtbs_region(region)}"
+
+
+def minfire_tag(min_fire=None):
+    """Filename tag for the minimum fire size, e.g. ``minfire6p45`` / ``minfire4``.
+
+    ``min_fire`` defaults to the current ``min_fire`` (override or yaml). The
+    value is formatted with ``:g`` and ``.`` becomes ``p``, so ``4`` and ``4.0``
+    give the same tag and shapefile names carry no extra dot.
+    """
+    value = float(resolve(min_fire, "min_fire"))
+    return "minfire" + f"{value:g}".replace(".", "p")
+
+
+def load_mtbs(path, area_col="AREA_SQKM", crs=None, max_year=None, year_col="YEAR", region=None):
     """Load MTBS burn-area boundaries in the equal-area CRS.
 
     The file's CRS is overridden with ``mtbs_crs`` before reprojecting. With the
     default ``area_col="AREA_SQKM"`` the vendor's area column is kept; pass
     ``area_col="area_km2"`` to compute polygon areas instead (notebook 1).
+
+    ``region`` (default ``mtbs_region`` in the yaml) is ``"conus"``, ``"ak"`` or
+    ``"all"`` (CONUS + Alaska). Hawai'i and Puerto Rico are always excluded. The
+    filter runs at read time, so fires outside the region are never loaded. The
+    region is recorded in ``gdf.attrs["mtbs_region"]``.
+
+    Fires after ``mtbs_max_year`` (default from the yaml) are dropped because
+    MTBS is still mapping/reviewing them; pass ``max_year`` to override.
     """
-    return load_shapefile(path, resolve(crs, "mtbs_crs"), area_col=area_col)
+    region = _resolve_mtbs_region(region)
+    gdf = load_shapefile(
+        path, resolve(crs, "mtbs_crs"), area_col=area_col, where=mtbs_region_where(region)
+    )
+    gdf = cap_mtbs_years(gdf, year_col=year_col, max_year=max_year)
+    gdf.attrs["mtbs_region"] = region
+    return gdf
 
 
 def load_idaho(path, layer="Fires1950_Present", equal_area_crs=None):
@@ -146,6 +202,14 @@ def load_gfa(
 def filter_years(df, year_col, years):
     """Rows with ``years[0] <= df[year_col] <= years[1]``."""
     return df[(df[year_col] >= years[0]) & (df[year_col] <= years[1])]
+
+
+def cap_mtbs_years(df, year_col="YEAR", max_year=None):
+    """Drop MTBS fires after ``mtbs_max_year`` (provisional years still under MTBS review).
+
+    See https://www.mtbs.gov/data-availability.
+    """
+    return df[df[year_col] <= resolve(max_year, "mtbs_max_year")]
 
 
 def overlap_with(gdf, other, dedup_col):

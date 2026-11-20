@@ -382,6 +382,7 @@ def fit_poisson_tail_trend(
     alpha=None,
     plot: bool = True,
     title: str = "Poisson Trend in Fire Frequency vs. Size Threshold by Biome",
+    save_figs: bool = False,
 ) -> pd.DataFrame:
     """Fit Poisson GLM of fire frequency (≥ Amin) ~ year across a log-spaced Amin grid.
 
@@ -401,6 +402,7 @@ def fit_poisson_tail_trend(
         n_thresholds, min_years, alpha: Default to ``config/poisson.yaml``.
         plot: Draw the faceted β₁-vs-Amin figure.
         title: Figure title.
+        save_figs: If True (and ``plot``), save the figure to ``FIGS_DIR``.
 
     Returns:
         Long DataFrame of per-group trend estimates over thresholds.
@@ -475,7 +477,8 @@ def fit_poisson_tail_trend(
     if plot:
         from wildfire_stats.plotting.temporal import plot_poisson_tail_trend
 
-        plot_poisson_tail_trend(trends_by_group, groups, amin_min=amin_min, alpha=alpha, title=title)
+        plot_poisson_tail_trend(trends_by_group, groups, amin_min=amin_min, alpha=alpha, title=title,
+                                save_figs=save_figs)
 
     all_results = list(trends_by_group.values())
     results_all = pd.concat(all_results, ignore_index=True) if all_results else pd.DataFrame()
