@@ -1,18 +1,16 @@
 """Fitted-distribution figures: parameter space, CCDF/CDF overlays, and Q–Q plots."""
 
-import os
-
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.patches import Polygon
 
-from wildfire_stats.config import load_paths, resolve
+from wildfire_stats.config import resolve
 from wildfire_stats.fitting import powerlaw as wfpl
 from wildfire_stats.fitting.stats_helpers.ccdf import ccdf_power_law
 from wildfire_stats.fitting.stats_helpers.qq import qq_theoretical, quantile_for_dist
+from wildfire_stats.plotting.presets import finish_fig, slugify
 from wildfire_stats.reporting.tables import parse_val_pm_se
-
-FIG_DPI = 300
 
 
 def plot_distribution_params(
@@ -23,6 +21,7 @@ def plot_distribution_params(
     max_rel_error=None,
     log_axes=False,
     datasets=("GFA", "Idaho", "MTBS"),
+    save_figs=False,
 ):
     """Visualize fitted distribution parameters across datasets and biomes.
 
@@ -38,6 +37,7 @@ def plot_distribution_params(
         max_rel_error (float, optional): Maximum allowed relative error (SE/param). Defaults to ``max_rel_error``.
         log_axes (bool, optional): Whether to log-scale axes. Defaults to False.
         datasets (tuple[str], optional): Dataset names for legend markers. Defaults to ("GFA", "Idaho", "MTBS").
+        save_figs (bool, optional): If True, save the figure to ``FIGS_DIR``.
 
     Displays:
         A faceted matplotlib figure comparing distribution parameter estimates across datasets.
@@ -230,11 +230,17 @@ def plot_distribution_params(
     )
 
     plt.tight_layout()
-    plt.show()
+    log_tag = "_log" if log_axes else ""
+    finish_fig(f"distribution_params{log_tag}", save_figs, fig=fig)
 
 
 def plot_modis_category_ccdf(
-    df, modis_class, xmin=None, which=("power_law",), col_name="modis_class"
+    df,
+    modis_class,
+    xmin=None,
+    which=("power_law",),
+    col_name="modis_class",
+    save_figs=False,
 ):
     """Plot the complementary CDF (CCDF) of fire sizes for one land-cover class.
 
@@ -244,6 +250,7 @@ def plot_modis_category_ccdf(
         xmin (float, optional): Minimum cutoff for fitting (default ``min_fire``).
         which (tuple[str], optional): Distributions to overlay on the CCDF plot.
         col_name (str): Class column.
+        save_figs (bool, optional): If True, save the figure to ``FIGS_DIR``.
 
     Returns:
         matplotlib.axes.Axes | None: The plot axis if successful, else None if data missing.
@@ -264,7 +271,7 @@ def plot_modis_category_ccdf(
     # Plot CCDF with overlayed fits from wildfire_powerlaw
     ax = wfpl.plot_ccdf_with_selected_fits(data, xmin=xmin, which=which)
     ax.set_title(f"CCDF of fire size in {modis_class}")
-    plt.show()
+    finish_fig(f"ccdf_{slugify(modis_class)}", save_figs, fig=ax.figure)
     return ax
 
 
@@ -361,14 +368,17 @@ def _stationary_qq_panel(
         print(f"{err_msg}: {e}")
 
 
-def _save_fig(save_dir, fname):
-    plt.tight_layout()
-    save_dir = os.fspath(load_paths().figs if save_dir is None else save_dir)
-    os.makedirs(save_dir, exist_ok=True)
-    save_path = os.path.join(save_dir, fname)
-    plt.savefig(save_path, dpi=FIG_DPI, bbox_inches="tight", transparent=True)
-    print(f"Figure saved to {save_path}")
-    plt.show()
+def _save_fig(fig, save_dir, name, save_figs):
+    """Tight layout, then save as ``<save_dir>/<name>.png`` (transparent, no date prefix)."""
+    fig.tight_layout()
+    finish_fig(
+        name,
+        save_figs,
+        fig=fig,
+        save_dir=save_dir,
+        date_prefix=False,
+        transparent=True,
+    )
 
 
 def _slug(label):
@@ -385,6 +395,7 @@ def plot_group_ccdf_cdf_qq(
     xmin=None,
     which=("power_law",),
     save_dir=None,
+    save_figs=False,
     nonstationary=True,
     year_col="year",
     timevary_summary=None,
@@ -417,8 +428,8 @@ def plot_group_ccdf_cdf_qq(
         'stretched_exponential', 'weibull', 'exponential'.
 
     Returns:
-        Matplotlib Figure, or None if skipped. Saved to ``save_dir``
-        (default ``paths.figs``).
+        Matplotlib Figure, or None if skipped. If ``save_figs``, saved to
+        ``save_dir`` (default ``paths.figs``).
     """
     xmin = resolve(xmin, "min_fire")
     trend_unit_years = resolve(trend_unit_years, "trend_unit_years")
@@ -436,19 +447,13 @@ def plot_group_ccdf_cdf_qq(
         else:
             years = subset[year_col].to_numpy()
 
-    # Extract fire size data and enforce alignment with year values
-    # TODO(bug): dropna() on sizes but not years, and the xmin mask below is built
-    # from the already-filtered `data`, so years misalign (IndexError) whenever a
-    # fire is NaN or below xmin.
-    data = subset["area_km2"].dropna().to_numpy()
+    # Filter sizes and years with one shared mask so they stay row-aligned
+    data = subset["area_km2"].to_numpy(dtype=float)
+    keep = np.isfinite(data) & (data >= xmin)
     if years is not None:
-        mask_valid = np.isfinite(data) & np.isfinite(years)
-        data = data[mask_valid]
-        years = years[mask_valid]
-
-    data = data[data >= xmin]
-    if years is not None:
-        years = years[data >= xmin]
+        keep &= np.isfinite(pd.to_numeric(subset[year_col], errors="coerce").to_numpy(dtype=float))
+        years = years[keep]
+    data = data[keep]
 
     if len(data) == 0:
         print(f"No valid area data above xmin={xmin} for {group}")
@@ -556,8 +561,8 @@ def plot_group_ccdf_cdf_qq(
         except Exception as e:
             print(f"Could not generate nonstationary Q–Q plot: {e}")
 
-    suffix = "_cdf_ccdf_qq_nonstationary.png" if nonstationary else "_cdf_ccdf_qq.png"
-    _save_fig(save_dir, f"{_slug(group)}{suffix}")
+    suffix = "_cdf_ccdf_qq_nonstationary" if nonstationary else "_cdf_ccdf_qq"
+    _save_fig(fig, save_dir, f"{_slug(group)}{suffix}", save_figs)
     return fig
 
 
@@ -572,13 +577,15 @@ def plot_tail_scan_ccdf_cdf_qq(
     llhr_cutoff=None,
     R_boot_tail: int = 20,
     save_dir=None,
+    save_figs=False,
 ):
     """Find a robust power-law tail (``fitting.fits.scan_powerlaw_tail``) and plot it.
 
     Panels: (1) CCDF with selected fits + tail power-law overlay, (2) CDF with
     selected fits + tail overlay, (3) Q–Q of the tail data vs the tail power law.
 
-    Was ``plot_refined_biome_tail_scan_ccdf_cdf_qq``.
+    Was ``plot_refined_biome_tail_scan_ccdf_cdf_qq``. If ``save_figs``, the
+    figure is saved to ``save_dir`` (default ``paths.figs``).
 
     Returns:
         (fig, tail_info); (None, None) on failure.
@@ -698,5 +705,5 @@ def plot_tail_scan_ccdf_cdf_qq(
             fit_label="Power law (tail) fit",
         )
 
-    _save_fig(save_dir, f"{_slug(group)}_tail_scan_cdf_ccdf_qq.png")
+    _save_fig(fig, save_dir, f"{_slug(group)}_tail_scan_cdf_ccdf_qq", save_figs)
     return fig, tail_info

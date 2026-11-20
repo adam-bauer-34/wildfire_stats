@@ -1,37 +1,15 @@
 """Figures comparing fire-size distributions across datasets (notebook 1)."""
 
-import os
-import re
-
 import matplotlib.pyplot as plt
 import numpy as np
 
-from wildfire_stats.config import load_paths
 from wildfire_stats.fitting.stats_helpers.kuiper import kuiper_scan
-from wildfire_stats.plotting.presets import get_presets
-
-FIG_DPI = 300
+from wildfire_stats.plotting.presets import finish_fig, get_presets, slugify
 
 
 def _fig_tag(labels):
     """Filename-safe tag built from the two dataset labels, e.g. ``MTBS_vs_Idaho``."""
-    clean = [re.sub(r"[^A-Za-z0-9]+", "-", str(lab)).strip("-") for lab in labels]
-    return f"{clean[0]}_vs_{clean[1]}"
-
-
-def _finish_fig(name, save_figs):
-    """Save the current figure to ``FIGS_DIR`` (if requested), then show it.
-
-    The filename is ``<date prefix from get_presets><name>.png``.
-    """
-    if save_figs:
-        _, basefile = get_presets()
-        figs_dir = load_paths().figs
-        os.makedirs(figs_dir, exist_ok=True)
-        save_path = os.path.join(figs_dir, f"{os.path.basename(basefile)}{name}.png")
-        plt.savefig(save_path, dpi=FIG_DPI, bbox_inches="tight")
-        print(f"Figure saved to {save_path}")
-    plt.show()
+    return f"{slugify(labels[0])}_vs_{slugify(labels[1])}"
 
 
 def _plot_ecdf_pair(df1, df2, labels, area_col, title, name, save_figs):
@@ -51,7 +29,7 @@ def _plot_ecdf_pair(df1, df2, labels, area_col, title, name, save_figs):
         plt.title(title)
         plt.legend()
         plt.grid(True, which="both", ls="--", alpha=0.5)
-        _finish_fig(name, save_figs)
+        finish_fig(name, save_figs)
 
 
 def plot_cdf_vs_area(
@@ -114,7 +92,7 @@ def plot_alpha_vs_kuiper_with_min_cdf(
         plt.title("Alpha vs. Kuiper Statistic")
         plt.legend()
         plt.grid(True, ls="--", alpha=0.5)
-        _finish_fig(f"alpha_vs_kuiper_{tag}", save_figs)
+        finish_fig(f"alpha_vs_kuiper_{tag}", save_figs)
 
     print(
         f"Minimum Kuiper statistic {min_kuiper:.4f} occurs at alpha = {min_alpha:.4f} km²"

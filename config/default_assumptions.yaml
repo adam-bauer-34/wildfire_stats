@@ -3,6 +3,7 @@
 # to override. Floats need a decimal point (1.0e-3, not 1e-3) for PyYAML.
 
 min_fire: 6.45                 # km^2; xmin for every fit (nb1 Kuiper scan); also Poisson A_min start; from my analysis in notebook 1
+                               # Notebooks override per run with cfg.set_overrides(min_fire=...); outputs are tagged _minfire<x>.
 min_fire_lucas: 4.50           # km^2; xmin for every fit (nb1 Kuiper scan); also Poisson A_min startl; from lucas's old notebook 1, we get different results
 
 # --- projections
@@ -27,6 +28,10 @@ trend_unit_years: 10        # year_c = (year - mean) / 10
 
 # --- data windows
 modis_years: [2003, 2016]
+mtbs_max_year: 2022         # last complete MTBS year; 2023+ fires are still being mapped/reviewed
+                            # (https://www.mtbs.gov/data-availability, checked 2026-11). Bump when MTBS finalizes a year.
+mtbs_region: all            # conus | ak | all (all = CONUS + AK). HI and PR are always excluded.
+                            # Chosen by the FIRE_ID state prefix; unselected fires are never read.
 
 # --- land-cover classification
 modis_nodata: 255

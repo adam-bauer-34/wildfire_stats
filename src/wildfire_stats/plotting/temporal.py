@@ -8,6 +8,7 @@ from matplotlib import cm
 
 from wildfire_stats.config import resolve
 from wildfire_stats.fitting.stats_helpers.ccdf import ccdf_dispatch
+from wildfire_stats.plotting.presets import finish_fig, slugify
 
 
 def plot_fire_counts_faceted(
@@ -17,6 +18,7 @@ def plot_fire_counts_faceted(
     ncols: int = 3,
     panel_width: float = 6,
     panel_height: float = 4,
+    save_figs: bool = False,
 ) -> None:
     """Faceted barplots of fire counts per year by MODIS class + overall.
 
@@ -27,6 +29,7 @@ def plot_fire_counts_faceted(
         ncols: Number of columns in the facet grid.
         panel_width: Width of each panel (inches).
         panel_height: Height of each panel (inches).
+        save_figs: If True, save the figure to ``FIGS_DIR``.
     """
     # Aggregate total yearly fire counts across all MODIS classes
     yearly_counts = mtbs_classified.groupby(year_col).size()
@@ -75,7 +78,7 @@ def plot_fire_counts_faceted(
     # Add a common title and tidy layout
     fig.suptitle("MTBS Fires by Year and Static MODIS Classification", fontsize=18, y=1.02)
     plt.tight_layout()
-    plt.show()
+    finish_fig(f"fire_counts_faceted_{slugify(static_col)}", save_figs, fig=fig)
 
 
 def fire_threshold_analysis(
@@ -83,6 +86,7 @@ def fire_threshold_analysis(
     year_col: str = "year",
     area_col: str = "area_km2",
     thresholds: tuple[float, ...] = (0, 4, 10, 20, 50),
+    save_figs: bool = False,
 ) -> None:
     """Plot yearly fire counts at multiple minimum-size thresholds.
 
@@ -91,6 +95,7 @@ def fire_threshold_analysis(
         year_col: Name of year column.
         area_col: Name of size column in km².
         thresholds: List of minimum size thresholds to consider.
+        save_figs: If True, save the figure to ``FIGS_DIR``.
     """
     # For each minimum threshold, compute yearly fire counts of fires above that size
     yearly_counts_by_thresh: dict[float, pd.Series] = {}
@@ -113,11 +118,16 @@ def fire_threshold_analysis(
     ax.set_ylabel("Number of Fires")
     ax.legend(title="Min fire size")
     plt.tight_layout()
-    plt.show()
+    finish_fig("fire_threshold_analysis", save_figs, fig=fig)
 
 
-def plot_fire_counts_by_period(counts_wide: pd.DataFrame, period_years: int, figsize=(10, 5)) -> None:
-    """Multi-series line chart of fires per period (from ``fires_time_series_by_ecoregion``)."""
+def plot_fire_counts_by_period(
+    counts_wide: pd.DataFrame, period_years: int, figsize=(10, 5), save_figs: bool = False
+) -> None:
+    """Multi-series line chart of fires per period (from ``fires_time_series_by_ecoregion``).
+
+    ``save_figs=True`` saves the figure to ``FIGS_DIR``.
+    """
     plt.figure(figsize=figsize)
     for cls in counts_wide.columns:
         plt.plot(counts_wide.index, counts_wide[cls], marker="o", label=cls)
@@ -127,15 +137,17 @@ def plot_fire_counts_by_period(counts_wide: pd.DataFrame, period_years: int, fig
               "MTBS Fires per Land Cover Type")
     plt.legend(loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0.0, fontsize=9)
     plt.tight_layout()
-    plt.show()
+    finish_fig(f"fire_counts_by_period_{period_years}yr", save_figs)
 
 
 def plot_poisson_tail_trend(trends_by_group: dict, groups: list, amin_min=None, alpha: float = 0.05,
-                            title: str = "Poisson Trend in Fire Frequency vs. Size Threshold by Biome") -> None:
+                            title: str = "Poisson Trend in Fire Frequency vs. Size Threshold by Biome",
+                            save_figs: bool = False) -> None:
     """Facet per group of Poisson β₁ ±1 SE against Amin (from ``fit_poisson_tail_trend``).
 
     ``groups`` fixes the panel order; groups missing from ``trends_by_group``
-    (skipped fits) leave an empty panel.
+    (skipped fits) leave an empty panel. ``save_figs=True`` saves the figure to
+    ``FIGS_DIR``.
     """
     amin_min = resolve(amin_min, "min_fire")
     ncols = 3
@@ -193,7 +205,7 @@ def plot_poisson_tail_trend(trends_by_group: dict, groups: list, amin_min=None, 
 
     fig.suptitle(title, fontsize=14, y=1.02)
     fig.tight_layout()
-    plt.show()
+    finish_fig("poisson_tail_trend", save_figs, fig=fig)
 
 
 def plot_distribution_evolution_ccdf_pdf(
@@ -207,6 +219,7 @@ def plot_distribution_evolution_ccdf_pdf(
     trend_unit_years=None,
     x_max_log10: int = 3,
     ccdf_ymin: float = 1e-5,
+    save_figs: bool = False,
 ) -> None:
     """For each (group, distribution) row in `df_both`, draw CCDF (log–log, normalized at xmin)
     and corresponding PDF (linear y, log x). Time evolution only included when the parameter
@@ -226,6 +239,7 @@ def plot_distribution_evolution_ccdf_pdf(
         trend_unit_years: Years corresponding to “+1” in slope multipliers.
         x_max_log10: Max exponent for logspace grid (10^x_max_log10).
         ccdf_ymin: Lower limit for CCDF plots (default 1e-5).
+        save_figs: If True, save each (group, distribution) figure to ``FIGS_DIR``.
     """
     xmin = resolve(xmin, "min_fire")
     trend_unit_years = resolve(trend_unit_years, "trend_unit_years")
@@ -329,4 +343,4 @@ def plot_distribution_evolution_ccdf_pdf(
         cax = fig.add_axes([0.90, 0.15, 0.02, 0.7])
         cbar = plt.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax)
         cbar.set_label("Year", rotation=270, labelpad=15)
-        plt.show()
+        finish_fig(f"evolution_ccdf_pdf_{slugify(biome)}_{dist}", save_figs, fig=fig)

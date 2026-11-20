@@ -10,9 +10,66 @@ World Bank Group
 """
 
 import os
+import re
 import datetime
 
 import matplotlib.pyplot as plt
+
+# Default resolution for every saved figure across the plotting package.
+FIG_DPI = 300
+
+
+def slugify(text):
+    """Filename-safe version of ``text`` (runs of non-alphanumerics -> ``-``)."""
+    return re.sub(r"[^A-Za-z0-9]+", "-", str(text)).strip("-")
+
+
+def finish_fig(
+    name,
+    save_figs=False,
+    fig=None,
+    save_dir=None,
+    date_prefix=True,
+    dpi=FIG_DPI,
+    show=True,
+    tag=True,
+    **savefig_kwargs,
+):
+    """Save a figure to ``FIGS_DIR`` (if ``save_figs``), then show it.
+
+    Args:
+        name (str): Filename stem (``.png`` is appended).
+        save_figs (bool): If True, write the figure to disk.
+        fig (Figure, optional): Figure to save; defaults to the current figure.
+        save_dir (path, optional): Output directory; defaults to ``paths.figs``.
+        date_prefix (bool): Prepend the ``YYYY-M-D-`` prefix from ``get_presets``.
+        dpi (int): Output resolution (default ``FIG_DPI`` = 300).
+        show (bool): Call ``plt.show()`` afterwards.
+        tag (bool): Append ``_<minfire tag>`` (e.g. ``_minfire6p45``) to the
+            filename so runs with different ``min_fire`` don't overwrite each other.
+        **savefig_kwargs: Extra keyword arguments for ``Figure.savefig``.
+
+    Returns:
+        str | None: Path of the saved file, or None if not saved.
+    """
+    save_path = None
+    if save_figs:
+        from wildfire_stats.config import load_paths
+        from wildfire_stats.data.io import minfire_tag
+
+        if tag:
+            name = f"{name}_{minfire_tag()}"
+        fig = plt.gcf() if fig is None else fig
+        save_dir = os.fspath(load_paths().figs if save_dir is None else save_dir)
+        os.makedirs(save_dir, exist_ok=True)
+        prefix = os.path.basename(get_presets()[1]) if date_prefix else ""
+        save_path = os.path.join(save_dir, f"{prefix}{name}.png")
+        savefig_kwargs.setdefault("bbox_inches", "tight")
+        fig.savefig(save_path, dpi=dpi, **savefig_kwargs)
+        print(f"Figure saved to {save_path}")
+    if show:
+        plt.show()
+    return save_path
 
 
 def get_presets(markers=False):
@@ -83,6 +140,7 @@ def get_presets(markers=False):
             ),
             "font.size": 16,
             "font.family": "sans",
+            "savefig.dpi": FIG_DPI,
         }
 
     else:
@@ -121,6 +179,7 @@ def get_presets(markers=False):
             "axes.prop_cycle": plt.cycler(linestyle=linestyle_list, color=color_list),
             "font.size": 16,
             "font.family": "sans",
+            "savefig.dpi": FIG_DPI,
         }
 
     today = datetime.datetime.now()

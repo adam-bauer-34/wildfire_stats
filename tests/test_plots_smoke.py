@@ -46,15 +46,58 @@ def test_group_ccdf_cdf_qq(fires, tv_tables, tmp_path, isolated_config):
     df_both, df_p1, df_p2 = tv_tables
     overall = fake_overall_results(CORE_BIOMES)
     summary = rsum.summarize_fits(df_both, df_p1, df_p2, overall)
-    # nonstationary Q–Q needs every fire >= xmin (see the TODO(bug) in the function)
-    tail = fires[fires.area_km2 >= 4]
-    fig = pdist.plot_group_ccdf_cdf_qq(tail, "Grasslands", col_name="modis_class_static", which=("lognormal",),
-                                       timevary_summary=summary, timevary_dist="lognormal")
+    # includes fires below xmin, so sizes/years must be filtered together (regression test)
+    fig = pdist.plot_group_ccdf_cdf_qq(fires, "Grasslands", col_name="modis_class_static", which=("lognormal",),
+                                       timevary_summary=summary, timevary_dist="lognormal", save_figs=True)
     assert len(fig.axes) == 4
     fig = pdist.plot_group_ccdf_cdf_qq(fires, "Grasslands", col_name="modis_class_static",
-                                       which=("lognormal", "power_law"), nonstationary=False)
+                                       which=("lognormal", "power_law"), nonstationary=False,
+                                       save_figs=True)
     assert len(fig.axes) == 3
     assert len(list((tmp_path / "figs").glob("*.png"))) == 2
+
+
+def test_save_figs_dpi(fires, tmp_path, isolated_config):
+    from PIL import Image
+
+    figs = tmp_path / "figs"
+    plc.plot_category_counts(fires, "modis_class_static")
+    assert not figs.exists() or not list(figs.glob("*.png"))  # default: no save
+    plc.plot_category_counts(fires, "modis_class_static", save_figs=True)
+    (png,) = figs.glob("*category_counts_modis-class-static_minfire6p45.png")
+    dpi = Image.open(png).info["dpi"]
+    assert round(dpi[0]) == 300
+
+
+def test_powerlaw_save_figs(fires, tmp_path, isolated_config):
+    from PIL import Image
+    from wildfire_stats.fitting import powerlaw as wfpl
+
+    data = fires.area_km2.to_numpy()
+    figs = tmp_path / "figs"
+    wfpl.plot_ccdf_with_selected_fits(data, xmin=4, which=["lognormal"])
+    assert not figs.exists() or not list(figs.glob("*.png"))  # default: no save
+    wfpl.plot_ccdf_with_selected_fits(data, xmin=4, which=["lognormal"], save_figs=True)
+    fit = wfpl.Fit(data, xmin=4)
+    fit.plot_pdf(save_figs=True)
+    fit.lognormal.plot_ccdf(save_figs=True)
+    names = sorted(p.name.split("-", 3)[-1] for p in figs.glob("*.png"))
+    assert names == [
+        "ccdf_selected_fits_lognormal_minfire6p45.png",
+        "data_pdf_minfire6p45.png",
+        "lognormal_ccdf_minfire6p45.png",
+    ]
+    for png in figs.glob("*.png"):
+        assert round(Image.open(png).info["dpi"][0]) == 300
+
+
+def test_save_figs_minfire_override(fires, tmp_path, isolated_config):
+    from wildfire_stats import config as cfg
+
+    cfg.set_overrides(min_fire=4)
+    plc.plot_category_counts(fires, "modis_class_static", save_figs=True)
+    (png,) = (tmp_path / "figs").glob("*.png")
+    assert png.name.endswith("category_counts_modis-class-static_minfire4.png")
 
 
 def test_tail_scan(fires):

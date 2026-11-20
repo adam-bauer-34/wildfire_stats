@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from wildfire_stats.config import resolve
+from wildfire_stats.plotting.presets import finish_fig, slugify
 from wildfire_stats.reporting.tables import confusion_to_labels, period_metrics
 
 # Default North America view for map panels without usable bounds
@@ -25,7 +26,9 @@ def _add_map_features(ax):
 
 # TODO(bug): total_bounds is in the geometry CRS (EPSG:6933 metres for MTBS), but
 # set_extent treats it as lon/lat; works only for lon/lat inputs.
-def plot_biome_facets(mtbs_classified: pd.DataFrame | gpd.GeoDataFrame) -> None:
+def plot_biome_facets(
+    mtbs_classified: pd.DataFrame | gpd.GeoDataFrame, save_figs: bool = False
+) -> None:
     """Create a 3×3 faceted map of MTBS fire locations by individual biome.
 
     One panel per biome (up to 9 panels); here we use 8 MODIS classes:
@@ -37,6 +40,8 @@ def plot_biome_facets(mtbs_classified: pd.DataFrame | gpd.GeoDataFrame) -> None:
       - Evergreen Needleleaf forest
       - Grasslands
       - Open shrublands
+
+    ``save_figs=True`` saves the figure to ``FIGS_DIR``.
     """
     # Silence runtime warnings from Cartopy/geopandas
     warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -145,21 +150,26 @@ def plot_biome_facets(mtbs_classified: pd.DataFrame | gpd.GeoDataFrame) -> None:
             ax.set_visible(False)
 
     plt.tight_layout()
-    plt.show()
+    finish_fig("biome_facets", save_figs, fig=fig)
 
 
 def plot_category_facets(
     fires_evt: gpd.GeoDataFrame | pd.DataFrame,
     col_name: str,
     min_fires: int | None = None,
+    save_figs: bool = False,
+    pad_frac: float = 0.2,
+    min_span: tuple[float, float] = (25.0, 15.0),
 ) -> None:
     """
     Create a faceted map of MTBS fire locations for EVT_NAME classes
     that have more than `min_fires` fires (e.g., >400).
 
-    Each panel shows fire centroids (LAT/LONG) for one EVT_NAME.
+    Each panel shows fire centroids (LAT/LONG) for one EVT_NAME, zoomed to the
+    data plus ``pad_frac`` of its extent on each side, but never smaller than
+    ``min_span`` = (lon degrees, lat degrees). Raise either to zoom out further.
     ``min_fires`` defaults to ``min_fires`` in the yaml. (Was notebook 7's
-    ``plot_evtname_facets``.)
+    ``plot_evtname_facets``.) ``save_figs=True`` saves the figure to ``FIGS_DIR``.
     """
     min_fires = resolve(min_fires, "min_fires")
     warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -234,12 +244,18 @@ def plot_category_facets(
                 minx, miny, maxx, maxy = subset[["LONGITUDE", "LATITUDE"]].agg(
                     ["min", "max"]
                 ).values.ravel()
-                pad_x = max((maxx - minx) * 0.05, 2)
-                pad_y = max((maxy - miny) * 0.05, 2)
-                ax.set_extent(
-                    [minx - pad_x, maxx + pad_x, miny - pad_y, maxy + pad_y],
-                    crs=ccrs.PlateCarree(),
-                )
+                # pad the data bbox, then enforce a minimum window so tight
+                # clusters still show enough surrounding geography to orient by
+                cx, cy = (minx + maxx) / 2, (miny + maxy) / 2
+                span_x = max((maxx - minx) * (1 + 2 * pad_frac), min_span[0])
+                span_y = max((maxy - miny) * (1 + 2 * pad_frac), min_span[1])
+                # crop to the North America window so AK+CONUS groups don't
+                # pad out past the dateline into Asia
+                x0 = max(cx - span_x / 2, DEFAULT_EXTENT[0])
+                x1 = min(cx + span_x / 2, DEFAULT_EXTENT[1])
+                y0 = max(cy - span_y / 2, DEFAULT_EXTENT[2])
+                y1 = min(cy + span_y / 2, DEFAULT_EXTENT[3])
+                ax.set_extent([x0, x1, y0, y1], crs=ccrs.PlateCarree())
             except Exception:
                 ax.set_extent(DEFAULT_EXTENT, crs=ccrs.PlateCarree())
 
@@ -255,11 +271,14 @@ def plot_category_facets(
             ax.set_visible(False)
 
     plt.tight_layout()
-    plt.show()
+    finish_fig(f"category_facets_{slugify(col_name)}_minfires{min_fires}", save_figs, fig=fig)
 
 
-def plot_category_counts(df, col="EVT_class", figsize=(12, 7)):
-    """Bar chart of fires per category, sorted (NaN included)."""
+def plot_category_counts(df, col="EVT_class", figsize=(12, 7), save_figs=False):
+    """Bar chart of fires per category, sorted (NaN included).
+
+    ``save_figs=True`` saves the figure to ``FIGS_DIR``.
+    """
     counts = df[col].value_counts(dropna=False).sort_values(ascending=False)
 
     plt.figure(figsize=figsize)
@@ -269,7 +288,7 @@ def plot_category_counts(df, col="EVT_class", figsize=(12, 7)):
     plt.ylabel("Number of Fires")
     plt.title("Number of Fires Classified by EVT Class (Sorted)")
     plt.tight_layout()
-    plt.show()
+    finish_fig(f"category_counts_{slugify(col)}", save_figs)
     return counts
 
 
@@ -281,10 +300,11 @@ def _annotate_cells(ax, values, fmt, fontsize):
                 ax.text(j, i, format(value, fmt), ha="center", va="center", fontsize=fontsize, color="black")
 
 
-def plot_confusion_matrix(confusion: pd.DataFrame, normalize: bool = False):
+def plot_confusion_matrix(confusion: pd.DataFrame, normalize: bool = False, save_figs: bool = False):
     """Heatmap of a GFA (rows) × MODIS (columns) confusion table.
 
-    With ``normalize=True`` rows are divided by their totals.
+    With ``normalize=True`` rows are divided by their totals. ``save_figs=True``
+    saves the figure to ``FIGS_DIR``.
     """
     values = confusion.div(confusion.sum(axis=1), axis=0) if normalize else confusion
 
@@ -302,11 +322,14 @@ def plot_confusion_matrix(confusion: pd.DataFrame, normalize: bool = False):
     _annotate_cells(plt.gca(), values, ".2f" if normalize else "", 8)
 
     plt.tight_layout()
-    plt.show()
+    finish_fig("confusion_matrix_normalized" if normalize else "confusion_matrix", save_figs)
 
 
-def plot_confusion_by_period(df, periods: dict, ref_col="gfa_class", pred_col="modis_class", year_col="year"):
+def plot_confusion_by_period(df, periods: dict, ref_col="gfa_class", pred_col="modis_class", year_col="year",
+                             save_figs: bool = False):
     """Row-normalized confusion matrices for each ``{label: (start, end)}`` period.
+
+    ``save_figs=True`` saves the figure to ``FIGS_DIR``.
 
     Returns:
         ``{label: metrics dict or None}`` (see ``reporting.tables.period_metrics``).
@@ -334,5 +357,5 @@ def plot_confusion_by_period(df, periods: dict, ref_col="gfa_class", pred_col="m
     fig.colorbar(im, ax=axes, orientation="vertical", fraction=0.02, pad=0.04, label="Proportion")
     plt.suptitle("Normalized Confusion Matrices by Time Period", fontsize=16)
     plt.tight_layout()
-    plt.show()
+    finish_fig("confusion_by_period", save_figs, fig=fig)
     return metrics
