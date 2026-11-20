@@ -1,4 +1,4 @@
-DATA_HEAD: /project/bbcael/private/ambauer/wildfire-stats
+DATA_HEAD: /Users/ambauer/Research/Projects/2026-1-Pres-Wildfires-BCKKS/wildfire_stats/data
 
 MODIS_SUBDIR: modis/
 MTBS_SUBDIR: mtbs/

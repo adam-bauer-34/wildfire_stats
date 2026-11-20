@@ -2,7 +2,8 @@
 # these values (see wildfire_stats.config.resolve); pass an explicit argument
 # to override. Floats need a decimal point (1.0e-3, not 1e-3) for PyYAML.
 
-min_fire: 4                 # km^2; xmin for every fit (nb1 Kuiper scan); also Poisson A_min start
+min_fire: 6.45                 # km^2; xmin for every fit (nb1 Kuiper scan); also Poisson A_min start; from my analysis in notebook 1
+min_fire_lucas: 4.50           # km^2; xmin for every fit (nb1 Kuiper scan); also Poisson A_min startl; from lucas's old notebook 1, we get different results
 
 # --- projections
 equal_area_crs: EPSG:6933   # all area computations
